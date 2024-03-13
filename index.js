@@ -113,6 +113,15 @@ app.get('/files/:id', (req, res) => {
         });
 });
 
+app.get('/getUser/:id',asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id)
+    if(!user){
+        res.status(400)
+        throw new Error('User not found')
+    }
+    res.status(200).json(user)
+}));
+
 
 app.post('/setUser', upload.single('file'), asyncHandler(async (req, res) => {
     if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position) {
@@ -163,6 +172,25 @@ app.post('/setUser', upload.single('file'), asyncHandler(async (req, res) => {
     res.status(200).json(user);
 }));
 
+app.put('/updateUser/:id',asyncHandler(async(res, req)=>{
+        const user = await User.findById(req.params.id)
+        if(!user){
+            res.status(404)
+            throw new Error('User not found')
+        }
+        
+        const updateFields = {};
+        for (const [key, value] of Object.entries(req.body)) {
+            if (value !== undefined) {
+                updateFields[key] = value;
+            }
+        }
+        
+        const updatedUser = await User.findByIdAndUpdate(req.params.id, updateFields, {new:true})
+        
+        res.status(200).json(updatedUser)
+   
+}))
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`app is listening on port ${port}`);
