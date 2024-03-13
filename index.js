@@ -10,8 +10,10 @@ const Grid = require('gridfs-stream')
 const multer = require('multer')
 const crypto = require('crypto')
 const conn = mongoose.createConnection(process.env.MONGO_URI);
+const cors = require('cors')
 
 const app = express();
+app.use(cors())
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
