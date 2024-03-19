@@ -126,7 +126,7 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
         throw new Error('User not found');
     }
     if (user.avatar) {
-        user.avatar = `${req.protocol}://${req.get('host')}/${user.avatar}`;
+        user.avatar = `${req.protocol}://${req.get('host')}/uploads/${user.avatar}`;
     }
     res.status(200).json(user);
 }));
