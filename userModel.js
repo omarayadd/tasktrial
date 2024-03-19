@@ -89,10 +89,10 @@ const userSchema = mongoose.Schema({
             message: props => `${props.value} is not a valid URL!`
           },
     },
-    profileImage: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'uploads.files'
-    },
+    avatar :{
+      type: String,
+      default : 'uploads/profile.png'
+    }
 
 },{
     timestamps: true,
