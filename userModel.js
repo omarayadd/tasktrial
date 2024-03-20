@@ -4,9 +4,11 @@ const mongoose = require('mongoose')
 const workingHoursSchema = new mongoose.Schema({
     start: {
       type: String,
+      default: ""
     },
     end: {
       type: String,
+      default: ""
     }
   });
 
@@ -42,6 +44,7 @@ const userSchema = mongoose.Schema({
           },
           message: props => `${props.value} is not a valid URL!`
         },
+        // default: ""
       },
     workingHours: {
         type: workingHoursSchema,
@@ -59,7 +62,7 @@ const userSchema = mongoose.Schema({
             },
             message: props => `${props.value} is not a valid URL!`
           },
-
+          // default: ""
     },
     instagram:{
         type:String,
@@ -69,6 +72,7 @@ const userSchema = mongoose.Schema({
             },
             message: props => `${props.value} is not a valid URL!`
           },
+        // default: ""  
     },
     xTwitter:{
         type:String,
@@ -78,7 +82,7 @@ const userSchema = mongoose.Schema({
             },
             message: props => `${props.value} is not a valid URL!`
           },
-
+        // default: ""
     },
     linkedIn:{
         type:String,
@@ -88,11 +92,13 @@ const userSchema = mongoose.Schema({
             },
             message: props => `${props.value} is not a valid URL!`
           },
+        // default: ""
     },
     avatar :{
       type: String,
       default : 'uploads/profile.png'
     }
+
 
 },{
     timestamps: true,

@@ -100,23 +100,6 @@ app.get('/', (req, res) => {
     res.render('upload');
 });
 
-app.get('/files', (req, res) => {
-    gfs.find().toArray((err, files) => {
-        if (err) {
-            return res.status(500).json({
-                err: err.message
-            });
-        }
-        if (!files || files.length === 0) {
-            return res.status(404).json({
-                err: "No files exist"
-            });
-        }
-        return res.json(files);
-    });
-});
-
-
 
 
 app.get('/getUser/:id', asyncHandler(async (req, res) => {
