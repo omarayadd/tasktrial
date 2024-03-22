@@ -48,58 +48,64 @@ let gfs = conn.once("open", () => {
     })
   });
 
-// const storage = new GridFsStorage({
-//     url: process.env.MONGO_URI,
-//     file: (req, file) => {
-//         return new Promise((resolve, reject) => {
-//             crypto.randomBytes(16, (err, buf) => {
-//                 if (err) {
-//                     return reject(err);
-//                 }
-//                 const filename = buf.toString('hex') + path.extname(file.originalname);
-//                 const fileInfo = {
-//                     filename: filename,
-//                     bucketName: 'uploads'
-//                 };
-//                 resolve(fileInfo)
-//             })
-//         })
-//     }
-// })
+
 
 const diskStorage = multer.diskStorage({
-    destination: function(req, file, cb){
-        console.log("File ", file)
-        cb(null, "uploads")
+    destination: function(req, file, cb) {
+        let destinationFolder = '';
+        if (file.mimetype.startsWith('image')) {
+            destinationFolder = 'uploads/images';
+        } else if (file.mimetype.startsWith('application/pdf')) {
+            destinationFolder = 'uploads/files';
+        } else {
+            return cb(new Error('Unsupported file type'), false);
+        }
+        cb(null, destinationFolder);
     },
-    filename: function(req, file, cb){
+    filename: function(req, file, cb) {
         const ext = file.mimetype.split('/')[1];
-        const fileName = `user-${Date.now()}.${ext}`
-        cb(null, fileName)
+        const fileName = `user-${Date.now()}.${ext}`;
+        cb(null, fileName);
     }
-})
+});
 
-const fileFilter = (req, file, cb)=>{
-    const imageType = file.mimetype.split('/')[0];
-    if(imageType === 'image'){
-        return cb(null, true)
-    }
-    else{
-        return cb(new Error('file must be of type image'), false)
-    }
-}
 
-// const upload = multer({ storage })
+
+const fileFilterImage = (req, file, cb) => {
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (imageTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('File must be of type image (jpeg, png, gif)'), false);
+    }
+};
+
+const fileFilterPDF = (req, file, cb) => {
+    const pdfTypes = ['application/pdf'];
+    if (pdfTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('File must be of type PDF'), false);
+    }
+};
 
 const upload = multer({
     storage: diskStorage,
-    fileFilter: fileFilter
-})
+    fileFilter: function(req, file, cb) {
+        if (file.fieldname === 'avatar') {
+            fileFilterImage(req, file, cb);
+        } else if (file.fieldname === 'cover') {
+            fileFilterPDF(req, file, cb);
+        } else {
+            cb(new Error('Invalid fieldname'), false);
+        }
+    }
+});
+
 
 app.get('/', (req, res) => {
     res.render('upload');
 });
-
 
 
 app.get('/getUser/:id', asyncHandler(async (req, res) => {
@@ -109,19 +115,21 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
         throw new Error('User not found');
     }
     if (user.avatar) {
-        user.avatar = `${req.protocol}://${req.get('host')}/uploads/${user.avatar}`;
+        user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`;
+    }
+    if(user.cover){
+        user.cover = `${req.protocol}://${req.get('host')}/uploads/files/${user.cover}`
     }
     res.status(200).json(user);
 }));
 
 
-app.post('/setUser', upload.single('file'), asyncHandler(async (req, res) => {
+app.post('/setUser',upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]) , asyncHandler(async (req, res) => {
     if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position) {
         res.status(400);
         throw new Error("Please fill the missing data");
     }
     let userData;
-    if (req.file) {
         userData = {
             name: req.body.name,
             phone: req.body.phone,
@@ -138,28 +146,13 @@ app.post('/setUser', upload.single('file'), asyncHandler(async (req, res) => {
             instagram: req.body.instagram,
             xTwitter: req.body.xTwitter,
             linkedIn: req.body.linkedIn,
-            avatar : req.file.filename,
         };
-    }
-    else {
-        userData = {
-            name: req.body.name,
-            phone: req.body.phone,
-            email: req.body.email,
-            position: req.body.position,
-            companyName: req.body.companyName,
-            website: req.body.website,
-            workingHours: {
-                start: req.body.start,
-                end: req.body.end
-            },
-            languages: req.body.languages,
-            facebook: req.body.facebook,
-            instagram: req.body.instagram,
-            xTwitter: req.body.xTwitter,
-            linkedIn: req.body.linkedIn,
+        if (req.files.avatar && req.files.avatar.length > 0) {
+            userData.avatar = req.files.avatar[0].filename;
         }
-    }
+        if(req.files.cover && req.files.cover.length>0){
+            userData.cover =  req.files.cover[0].filename;
+        }
     const user = await User.create(userData);
     res.status(200).json(user);
 }));
