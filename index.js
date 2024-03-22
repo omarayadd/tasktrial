@@ -123,6 +123,15 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
     res.status(200).json(user);
 }));
 
+app.get('/allUsers', asyncHandler(async(req, res)=>{
+    const users = await User.find();
+    if(!users){
+        res.status(404);
+        throw new Error('No Users are found');
+    }
+    res.status(200).json(users);
+}))
+
 
 app.post('/setUser',upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]) , asyncHandler(async (req, res) => {
     if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position) {
