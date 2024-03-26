@@ -5,12 +5,14 @@ const path = require('path');
 const asyncHandler = require('express-async-handler');
 const bodyParser = require('body-parser');
 const User = require('./userModel');
-const { GridFsStorage } = require('multer-gridfs-storage');
 const Grid = require('gridfs-stream')
 const multer = require('multer')
+const { GridFsStorage } = require("multer-gridfs-storage")  //new
 const crypto = require('crypto')
 const conn = mongoose.createConnection(process.env.MONGO_URI);
 const cors = require('cors')
+const MongoClient = require("mongodb").MongoClient //new
+const GridFSBucket = require("mongodb").GridFSBucket //new
 
 const app = express();
 app.use(cors())
@@ -50,24 +52,24 @@ let gfs = conn.once("open", () => {
 
 
 
-const diskStorage = multer.diskStorage({
-    destination: function(req, file, cb) {
-        let destinationFolder = '';
-        if (file.mimetype.startsWith('image')) {
-            destinationFolder = 'uploads/images';
-        } else if (file.mimetype.startsWith('application/pdf')) {
-            destinationFolder = 'uploads/files';
-        } else {
-            return cb(new Error('Unsupported file type'), false);
-        }
-        cb(null, destinationFolder);
-    },
-    filename: function(req, file, cb) {
-        const ext = file.mimetype.split('/')[1];
-        const fileName = `user-${Date.now()}.${ext}`;
-        cb(null, fileName);
-    }
-});
+// const diskStorage = multer.diskStorage({
+//     destination: function(req, file, cb) {
+//         let destinationFolder = '';
+//         if (file.mimetype.startsWith('image')) {
+//             destinationFolder = 'uploads/images';
+//         } else if (file.mimetype.startsWith('application/pdf')) {
+//             destinationFolder = 'uploads/files';
+//         } else {
+//             return cb(new Error('Unsupported file type'), false);
+//         }
+//         cb(null, destinationFolder);
+//     },
+//     filename: function(req, file, cb) {
+//         const ext = file.mimetype.split('/')[1];
+//         const fileName = `user-${Date.now()}.${ext}`;
+//         cb(null, fileName);
+//     }
+// });
 
 
 
@@ -89,8 +91,30 @@ const fileFilterPDF = (req, file, cb) => {
     }
 };
 
+// new
+const url = process.env.MONGO_URI
+const mongoClient = new MongoClient(url)
+const storagee = new GridFsStorage({
+    url,
+    file: (req, file) => {
+      //If it is an image, save to photos bucket
+      if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+        return {
+          bucketName: "photos",
+          filename: `${Date.now()}_${file.originalname}`,
+        }
+      } else {
+        return {
+            bucketName: "covers",
+            filename: `${Date.now()}_${file.originalname}`,
+          }
+      }
+    },
+  })
+
 const upload = multer({
-    storage: diskStorage,
+    // storage: diskStorage,
+    storage: storagee,//new
     fileFilter: function(req, file, cb) {
         if (file.fieldname === 'avatar') {
             fileFilterImage(req, file, cb);
@@ -101,6 +125,80 @@ const upload = multer({
         }
     }
 });
+
+
+
+
+
+//new
+app.get("/getImage/:filename", async (req, res) => {
+    try {
+      await mongoClient.connect()
+  
+      const database = mongoClient.db("userDataApp")
+  
+      const imageBucket = new GridFSBucket(database, {
+        bucketName: "photos",
+      })
+  
+      let downloadStream = imageBucket.openDownloadStreamByName(
+        req.params.filename
+      )
+  
+      downloadStream.on("data", function (data) {
+        return res.status(200).write(data)
+      })
+  
+      downloadStream.on("error", function (data) {
+        return res.status(404).send({ error: "Image not found" })
+      })
+  
+      downloadStream.on("end", () => {
+        return res.end()
+      })
+    } catch (error) {
+      console.log(error)
+      res.status(500).send({
+        message: "Error Something went wrong",
+        error,
+      })
+    }
+  })
+
+
+  app.get("/getCover/:filename", async (req, res) => {
+    try {
+      await mongoClient.connect()
+  
+      const database = mongoClient.db("userDataApp")
+  
+      const imageBucket = new GridFSBucket(database, {
+        bucketName: "covers",
+      })
+  
+      let downloadStream = imageBucket.openDownloadStreamByName(
+        req.params.filename
+      )
+  
+      downloadStream.on("data", function (data) {
+        return res.status(200).write(data)
+      })
+  
+      downloadStream.on("error", function (data) {
+        return res.status(404).send({ error: "File not found" })
+      })
+  
+      downloadStream.on("end", () => {
+        return res.end()
+      })
+    } catch (error) {
+      console.log(error)
+      res.status(500).send({
+        message: "Error Something went wrong",
+        error,
+      })
+    }
+  })
 
 
 app.get('/', (req, res) => {
@@ -132,10 +230,10 @@ app.get('/allUsers', asyncHandler(async(req, res) => {
     const usersWithUrls = users.map(user => {
         const userData = user.toJSON();
         if (userData.avatar) {
-            userData.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${userData.avatar}`;
+            userData.avatar = `${req.protocol}://${req.get('host')}/getImage/${userData.avatar}`;
         }
         if (userData.cover) {
-            userData.cover = `${req.protocol}://${req.get('host')}/uploads/files/${userData.cover}`;
+            userData.cover = `${req.protocol}://${req.get('host')}/getCover/${userData.cover}`;
         }
         return userData;
     });
@@ -201,3 +299,51 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`app is listening on port ${port}`);
 });
+
+
+
+
+
+
+// new
+// app.post("/upload/image", upload.single("avatar"), (req, res) => {
+//     const file = req.file
+//     // Respond with the file details
+//     res.send({
+//       message: "Uploaded",
+//       id: file.id,
+//       name: file.filename,
+//       contentType: file.contentType,
+//     })
+//   })
+
+//new
+// app.get("/images", async (req, res) => {
+//     try {
+//       await mongoClient.connect()
+  
+//       const database = mongoClient.db("userDataApp")
+//       const images = database.collection("photos.files")
+//       const cursor = images.find({})
+//       const count = await cursor.count()
+//       if (count === 0) {
+//         return res.status(404).send({
+//           message: "Error: No Images found",
+//         })
+//       }
+  
+//       const allImages = []
+  
+//       await cursor.forEach(item => {
+//         allImages.push(item)
+//       })
+  
+//       res.send({ files: allImages })
+//     } catch (error) {
+//       console.log(error)
+//       res.status(500).send({
+//         message: "Error Something went wrong",
+//         error,
+//       })
+//     }
+//   })
