@@ -213,10 +213,15 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
         throw new Error('User not found');
     }
     if (user.avatar) {
-        user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`;
+        if(user.avatar==="profile.png"){
+            user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`
+        }
+        else{
+        user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
+        }
     }
-    if(user.cover){
-        user.cover = `${req.protocol}://${req.get('host')}/uploads/files/${user.cover}`
+    if (user.cover) {
+        user.cover = `${req.protocol}://${req.get('host')}/getCover/${user.cover}`;
     }
     res.status(200).json(user);
 }));
@@ -230,7 +235,12 @@ app.get('/allUsers', asyncHandler(async(req, res) => {
     const usersWithUrls = users.map(user => {
         const userData = user.toJSON();
         if (userData.avatar) {
+            if(userData.avatar==="profile.png"){
+                userData.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${userData.avatar}`
+            }
+            else{
             userData.avatar = `${req.protocol}://${req.get('host')}/getImage/${userData.avatar}`;
+            }
         }
         if (userData.cover) {
             userData.cover = `${req.protocol}://${req.get('host')}/getCover/${userData.cover}`;
