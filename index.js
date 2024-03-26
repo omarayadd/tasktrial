@@ -123,14 +123,26 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
     res.status(200).json(user);
 }));
 
-app.get('/allUsers', asyncHandler(async(req, res)=>{
+app.get('/allUsers', asyncHandler(async(req, res) => {
     const users = await User.find();
-    if(!users){
+    if (!users) {
         res.status(404);
         throw new Error('No Users are found');
     }
-    res.status(200).json(users);
-}))
+    const usersWithUrls = users.map(user => {
+        const userData = user.toJSON();
+        if (userData.avatar) {
+            userData.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${userData.avatar}`;
+        }
+        if (userData.cover) {
+            userData.cover = `${req.protocol}://${req.get('host')}/uploads/files/${userData.cover}`;
+        }
+        return userData;
+    });
+
+    res.status(200).json(usersWithUrls);
+}));
+
 
 
 app.post('/setUser',upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]) , asyncHandler(async (req, res) => {

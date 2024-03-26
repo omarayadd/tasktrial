@@ -96,7 +96,7 @@ const userSchema = mongoose.Schema({
     },
     avatar :{
       type: String,
-      default : 'uploads/profile.png'
+      default : 'profile.png'
     },
 
     cover :{
