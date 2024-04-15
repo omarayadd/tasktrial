@@ -83,7 +83,7 @@ const fileFilterImage = (req, file, cb) => {
 };
 
 const fileFilterPDF = (req, file, cb) => {
-    const pdfTypes = ['application/pdf'];
+    const pdfTypes = ['application/pdf, image/jpeg', 'image/png', 'image/gif'];
     if (pdfTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
@@ -253,38 +253,57 @@ app.get('/allUsers', asyncHandler(async(req, res) => {
 
 
 
-app.post('/setUser',upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]) , asyncHandler(async (req, res) => {
-    if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position) {
-        res.status(400);
-        throw new Error("Please fill the missing data");
-    }
-    let userData;
-        userData = {
-            name: req.body.name,
-            phone: req.body.phone,
-            email: req.body.email,
-            position: req.body.position,
-            companyName: req.body.companyName,
-            website: req.body.website,
-            workingHours: {
-                start: req.body.start,
-                end: req.body.end
-            },
-            languages: req.body.languages,
-            facebook: req.body.facebook,
-            instagram: req.body.instagram,
-            xTwitter: req.body.xTwitter,
-            linkedIn: req.body.linkedIn,
-        };
-        if (req.files.avatar && req.files.avatar.length > 0) {
-            userData.avatar = req.files.avatar[0].filename;
+app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), asyncHandler(async (req, res) => {
+  try {
+      if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position) {
+          res.status(400);
+          throw new Error("Please fill the missing data");
+      }
+
+       const phoneRegex = /^\d+$/;
+        if (!phoneRegex.test(req.body.phone)) {
+            res.status(400);
+            throw new Error("Phone number should only contain digits");
         }
-        if(req.files.cover && req.files.cover.length>0){
-            userData.cover =  req.files.cover[0].filename;
-        }
-    const user = await User.create(userData);
-    res.status(200).json(user);
+
+      const existingUser = await User.findOne({ email: req.body.email });
+      if (existingUser) {
+          res.status(400);
+          throw new Error("Email already exists");
+      }
+
+      let userData;
+      userData = {
+          name: req.body.name,
+          phone: req.body.phone,
+          email: req.body.email,
+          position: req.body.position,
+          companyName: req.body.companyName,
+          website: req.body.website,
+          workingHours: {
+              start: req.body.start,
+              end: req.body.end
+          },
+          languages: req.body.languages,
+          facebook: req.body.facebook,
+          instagram: req.body.instagram,
+          xTwitter: req.body.xTwitter,
+          linkedIn: req.body.linkedIn,
+      };
+      if (req.files.avatar && req.files.avatar.length > 0) {
+          userData.avatar = req.files.avatar[0].filename;
+      }
+      if (req.files.cover && req.files.cover.length > 0) {
+          userData.cover = req.files.cover[0].filename;
+      }
+
+      const user = await User.create(userData);
+      res.status(200).json(user);
+  } catch (error) {
+      res.status(400).json({ message: error.message });
+  }
 }));
+
 
 app.put('/updateUser/:id',asyncHandler(async(res, req)=>{
         const user = await User.findById(req.params.id)
