@@ -74,7 +74,7 @@ let gfs = conn.once("open", () => {
 
 
 const fileFilterImage = (req, file, cb) => {
-    const imageTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (imageTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
