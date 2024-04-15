@@ -271,7 +271,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
           res.status(400);
           throw new Error("Email already exists");
       }
-
+      console.log(req.body.website)
       let userData;
       userData = {
           name: req.body.name,

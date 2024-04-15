@@ -40,7 +40,9 @@ const userSchema = mongoose.Schema({
         type: String,
         validate: {
           validator: function(value) {
-            return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+            if(value){
+              return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+              }
           },
           message: props => `${props.value} is not a valid URL!`
         },
@@ -58,7 +60,9 @@ const userSchema = mongoose.Schema({
         type:String,
         validate: {
             validator: function(value) {
-              return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+              if(value){
+                return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+                }
             },
             message: props => `${props.value} is not a valid URL!`
           },
@@ -68,7 +72,9 @@ const userSchema = mongoose.Schema({
         type:String,
         validate: {
             validator: function(value) {
-              return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+              if(value){
+                return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+                }
             },
             message: props => `${props.value} is not a valid URL!`
           },
@@ -78,7 +84,9 @@ const userSchema = mongoose.Schema({
         type:String,
         validate: {
             validator: function(value) {
+              if(value){
               return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+              }
             },
             message: props => `${props.value} is not a valid URL!`
           },
@@ -88,7 +96,9 @@ const userSchema = mongoose.Schema({
         type:String,
         validate: {
             validator: function(value) {
-              return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+              if(value){
+                return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
+                }
             },
             message: props => `${props.value} is not a valid URL!`
           },
