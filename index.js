@@ -5,6 +5,7 @@ const path = require('path');
 const asyncHandler = require('express-async-handler');
 const bodyParser = require('body-parser');
 const User = require('./userModel');
+const Admin = require('./adminModel')
 const Grid = require('gridfs-stream')
 const multer = require('multer')
 const { GridFsStorage } = require("multer-gridfs-storage")  //new
@@ -13,6 +14,7 @@ const conn = mongoose.createConnection(process.env.MONGO_URI);
 const cors = require('cors')
 const MongoClient = require("mongodb").MongoClient //new
 const GridFSBucket = require("mongodb").GridFSBucket //new
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(cors())
@@ -127,6 +129,23 @@ const upload = multer({
 });
 
 
+const adminAuthMiddleware = (req, res, next) => {
+  const token = req.header('Authorization').replace('Bearer ', '');
+
+  if (!token) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+  }
+
+  try {
+      const decoded = jwt.verify(token, 'your_jwt_secret');
+      req.admin = decoded;
+      next();
+  } catch (err) {
+      res.status(401).json({ message: 'Token is not valid' });
+  }
+};
+
+
 
 
 
@@ -165,6 +184,48 @@ app.get("/getImage/:filename", async (req, res) => {
     }
   })
 
+//   app.post('/addAdmin', asyncHandler(async (req, res) => {
+//     const { adminname, password } = req.body;
+
+//     try {
+//         // Check if an admin already exists
+//         const existingAdmin = await Admin.findOne({});
+//         if (existingAdmin) {
+//             return res.status(400).json({ message: 'Admin already exists' });
+//         }
+
+//         // Create a new admin
+//         const admin = new Admin({ adminname, password });
+//         await admin.save();
+//         res.status(201).json({ message: 'Admin created successfully' });
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).json({ message: 'Server error' });
+//     }
+// }));
+
+
+  app.post("/login", async (req, res) => {
+    const { adminname, password } = req.body;
+
+    try {
+        const admin = await Admin.findOne({ adminname });
+        if (!admin) {
+            return res.status(401).json({ message: 'Invalid username or password' });
+        }
+
+        const isMatch = await admin.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid username or password' });
+        }
+
+        const token = jwt.sign({ adminId: admin._id }, 'your_jwt_secret', { expiresIn: '1h' });
+        res.json({ token });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
   app.get("/getCover/:filename", async (req, res) => {
     try {
