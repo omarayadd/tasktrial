@@ -4,23 +4,19 @@ const mongoose = require('mongoose');
 const path = require('path');
 const asyncHandler = require('express-async-handler');
 const bodyParser = require('body-parser');
-const User = require('./userModel');
-const Admin = require('./adminModel')
-const Grid = require('gridfs-stream')
-const multer = require('multer')
-const { GridFsStorage } = require("multer-gridfs-storage")  //new
-const crypto = require('crypto')
-const conn = mongoose.createConnection(process.env.MONGO_URI);
-const cors = require('cors')
-const MongoClient = require("mongodb").MongoClient //new
-const GridFSBucket = require("mongodb").GridFSBucket //new
+const User = require('.//userModel');
+const Admin = require('./adminModel');
+const Grid = require('gridfs-stream');
+const multer = require('multer');
+const { GridFsStorage } = require('multer-gridfs-storage');
+const crypto = require('crypto');
+const cors = require('cors');
 const jwt = require('jsonwebtoken');
 
 const app = express();
-app.use(cors())
+app.use(cors());
 
-app.use('/uploads', express.static(path.join(__dirname, './uploads')))
-
+app.use('/uploads', express.static(path.join(__dirname, './uploads')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.json());
@@ -42,38 +38,14 @@ const connectDB = async () => {
     }
 };
 
-connectDB()
+connectDB();
 
-
-let gfs = conn.once("open", () => {
-  
-    gfs = new mongoose.mongo.GridFSBucket(conn.db,{
-        bucketName:"uploads"
-    })
-  });
-
-
-
-// const diskStorage = multer.diskStorage({
-//     destination: function(req, file, cb) {
-//         let destinationFolder = '';
-//         if (file.mimetype.startsWith('image')) {
-//             destinationFolder = 'uploads/images';
-//         } else if (file.mimetype.startsWith('application/pdf')) {
-//             destinationFolder = 'uploads/files';
-//         } else {
-//             return cb(new Error('Unsupported file type'), false);
-//         }
-//         cb(null, destinationFolder);
-//     },
-//     filename: function(req, file, cb) {
-//         const ext = file.mimetype.split('/')[1];
-//         const fileName = `user-${Date.now()}.${ext}`;
-//         cb(null, fileName);
-//     }
-// });
-
-
+const conn = mongoose.createConnection(process.env.MONGO_URI);
+let gfs = conn.once('open', () => {
+    gfs = new mongoose.mongo.GridFSBucket(conn.db, {
+        bucketName: 'uploads'
+    });
+});
 
 const fileFilterImage = (req, file, cb) => {
     const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -85,7 +57,7 @@ const fileFilterImage = (req, file, cb) => {
 };
 
 const fileFilterPDF = (req, file, cb) => {
-    const pdfTypes = ['application/pdf, image/jpeg', 'image/png', 'image/gif'];
+    const pdfTypes = ['application/pdf'];
     if (pdfTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
@@ -93,31 +65,28 @@ const fileFilterPDF = (req, file, cb) => {
     }
 };
 
-// new
-const url = process.env.MONGO_URI
-const mongoClient = new MongoClient(url)
-const storagee = new GridFsStorage({
+const url = process.env.MONGO_URI;
+const mongoClient = new mongoose.mongo.MongoClient(url);
+const storage = new GridFsStorage({
     url,
     file: (req, file) => {
-      //If it is an image, save to photos bucket
-      if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
-        return {
-          bucketName: "photos",
-          filename: `${Date.now()}_${file.originalname}`,
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+            return {
+                bucketName: 'photos',
+                filename: `${Date.now()}_${file.originalname}`,
+            };
+        } else {
+            return {
+                bucketName: 'covers',
+                filename: `${Date.now()}_${file.originalname}`,
+            };
         }
-      } else {
-        return {
-            bucketName: "covers",
-            filename: `${Date.now()}_${file.originalname}`,
-          }
-      }
     },
-  })
+});
 
 const upload = multer({
-    // storage: diskStorage,
-    storage: storagee,//new
-    fileFilter: function(req, file, cb) {
+    storage,
+    fileFilter: (req, file, cb) => {
         if (file.fieldname === 'avatar') {
             fileFilterImage(req, file, cb);
         } else if (file.fieldname === 'cover') {
@@ -128,144 +97,137 @@ const upload = multer({
     }
 });
 
-
 const adminAuthMiddleware = (req, res, next) => {
-  const token = req.header('Authorization').replace('Bearer ', '');
+    const token = req.header('Authorization').replace('Bearer ', '');
 
-  if (!token) {
-      return res.status(401).json({ message: 'No token, authorization denied' });
-  }
+    if (!token) {
+        return res.status(401).json({ message: 'No token, authorization denied' });
+    }
 
-  try {
-      const decoded = jwt.verify(token, 'your_jwt_secret');
-      req.admin = decoded;
-      next();
-  } catch (err) {
-      res.status(401).json({ message: 'Token is not valid' });
-  }
+    try {
+        const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+        req.admin = decoded;
+        next();
+    } catch (err) {
+        res.status(401).json({ message: 'Token is not valid' });
+    }
 };
 
+const userAuthMiddleware = (req, res, next) => {
+    const token = req.header('Authorization').replace('Bearer ', '');
 
-
-
-
-//new
-app.get("/getImage/:filename", async (req, res) => {
-    try {
-      await mongoClient.connect()
-  
-      const database = mongoClient.db("userDataApp")
-  
-      const imageBucket = new GridFSBucket(database, {
-        bucketName: "photos",
-      })
-  
-      let downloadStream = imageBucket.openDownloadStreamByName(
-        req.params.filename
-      )
-  
-      downloadStream.on("data", function (data) {
-        return res.status(200).write(data)
-      })
-  
-      downloadStream.on("error", function (data) {
-        return res.status(404).send({ error: "Image not found" })
-      })
-  
-      downloadStream.on("end", () => {
-        return res.end()
-      })
-    } catch (error) {
-      console.log(error)
-      res.status(500).send({
-        message: "Error Something went wrong",
-        error,
-      })
+    if (!token) {
+        return res.status(401).json({ message: 'No token, authorization denied' });
     }
-  })
-
-//   app.post('/addAdmin', asyncHandler(async (req, res) => {
-//     const { adminname, password } = req.body;
-
-//     try {
-//         // Check if an admin already exists
-//         const existingAdmin = await Admin.findOne({});
-//         if (existingAdmin) {
-//             return res.status(400).json({ message: 'Admin already exists' });
-//         }
-
-//         // Create a new admin
-//         const admin = new Admin({ adminname, password });
-//         await admin.save();
-//         res.status(201).json({ message: 'Admin created successfully' });
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).json({ message: 'Server error' });
-//     }
-// }));
-
-
-  app.post("/login", async (req, res) => {
-    const { adminname, password } = req.body;
 
     try {
-        const admin = await Admin.findOne({ adminname });
-        if (!admin) {
-            return res.status(401).json({ message: 'Invalid username or password' });
+        const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.status(401).json({ message: 'Token is not valid' });
+    }
+};
+
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    console.log(email)
+    console.log(password)
+
+    try {
+        let admin = await Admin.findOne({ email });
+        console.log(admin)
+        if (admin) {
+            const isMatch = await admin.comparePassword(password);
+            if (!isMatch) {
+                return res.status(401).json({ message: 'Invalid username or password' });
+            }
+            const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.ADMIN_JWT_SECRET, { expiresIn: '1h' });
+            return res.json({ token, role: admin.role });
         }
 
-        const isMatch = await admin.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid username or password' });
+        let user = await User.findOne({ email });
+        if (user) {
+            const isMatch = await user.comparePassword(password);
+            if (!isMatch) {
+                return res.status(401).json({ message: 'Invalid email or password' });
+            }
+            const token = jwt.sign({ id: user._id, role: user.role }, process.env.USER_JWT_SECRET, { expiresIn: '1h' });
+            return res.json({ token, role: user.role });
         }
 
-        const token = jwt.sign({ adminId: admin._id }, 'your_jwt_secret', { expiresIn: '1h' });
-        res.json({ token });
+        return res.status(401).json({ message: 'Invalid username or password' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
     }
 });
 
-  app.get("/getCover/:filename", async (req, res) => {
+app.get('/getImage/:filename', async (req, res) => {
     try {
-      await mongoClient.connect()
-  
-      const database = mongoClient.db("userDataApp")
-  
-      const imageBucket = new GridFSBucket(database, {
-        bucketName: "covers",
-      })
-  
-      let downloadStream = imageBucket.openDownloadStreamByName(
-        req.params.filename
-      )
-  
-      downloadStream.on("data", function (data) {
-        return res.status(200).write(data)
-      })
-  
-      downloadStream.on("error", function (data) {
-        return res.status(404).send({ error: "File not found" })
-      })
-  
-      downloadStream.on("end", () => {
-        return res.end()
-      })
-    } catch (error) {
-      console.log(error)
-      res.status(500).send({
-        message: "Error Something went wrong",
-        error,
-      })
-    }
-  })
+        await mongoClient.connect();
 
+        const database = mongoClient.db('userDataApp');
+        const imageBucket = new mongoose.mongo.GridFSBucket(database, {
+            bucketName: 'photos',
+        });
+
+        let downloadStream = imageBucket.openDownloadStreamByName(req.params.filename);
+
+        downloadStream.on('data', function (data) {
+            return res.status(200).write(data);
+        });
+
+        downloadStream.on('error', function () {
+            return res.status(404).send({ error: 'Image not found' });
+        });
+
+        downloadStream.on('end', () => {
+            return res.end();
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            message: 'Error Something went wrong',
+            error,
+        });
+    }
+});
+
+app.get('/getCover/:filename', async (req, res) => {
+    try {
+        await mongoClient.connect();
+
+        const database = mongoClient.db('userDataApp');
+        const imageBucket = new mongoose.mongo.GridFSBucket(database, {
+            bucketName: 'covers',
+        });
+
+        let downloadStream = imageBucket.openDownloadStreamByName(req.params.filename);
+
+        downloadStream.on('data', function (data) {
+            return res.status(200).write(data);
+        });
+
+        downloadStream.on('error', function () {
+            return res.status(404).send({ error: 'File not found' });
+        });
+
+        downloadStream.on('end', () => {
+            return res.end();
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            message: 'Error Something went wrong',
+            error,
+        });
+    }
+});
 
 app.get('/', (req, res) => {
     res.render('upload');
 });
-
 
 app.get('/getUser/:id', asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
@@ -274,11 +236,10 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
         throw new Error('User not found');
     }
     if (user.avatar) {
-        if(user.avatar==="profile.png"){
-            user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`
-        }
-        else{
-        user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
+        if (user.avatar === 'profile.png') {
+            user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`;
+        } else {
+            user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
         }
     }
     if (user.cover) {
@@ -287,7 +248,7 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
     res.status(200).json(user);
 }));
 
-app.get('/allUsers', asyncHandler(async(req, res) => {
+app.get('/allUsers', adminAuthMiddleware, asyncHandler(async (req, res) => {
     const users = await User.find();
     if (!users) {
         res.status(404);
@@ -296,11 +257,10 @@ app.get('/allUsers', asyncHandler(async(req, res) => {
     const usersWithUrls = users.map(user => {
         const userData = user.toJSON();
         if (userData.avatar) {
-            if(userData.avatar==="profile.png"){
-                userData.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${userData.avatar}`
-            }
-            else{
-            userData.avatar = `${req.protocol}://${req.get('host')}/getImage/${userData.avatar}`;
+            if (userData.avatar === 'profile.png') {
+                userData.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${userData.avatar}`;
+            } else {
+                userData.avatar = `${req.protocol}://${req.get('host')}/getImage/${userData.avatar}`;
             }
         }
         if (userData.cover) {
@@ -312,128 +272,79 @@ app.get('/allUsers', asyncHandler(async(req, res) => {
     res.status(200).json(usersWithUrls);
 }));
 
-
-
 app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), asyncHandler(async (req, res) => {
-  try {
-      if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position) {
-          res.status(400);
-          throw new Error("Please fill the missing data");
-      }
+    try {
+        if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position || !req.body.password) {
+            res.status(400);
+            throw new Error('Please fill the missing data');
+        }
 
-       const phoneRegex = /^\d+$/;
+        const phoneRegex = /^\d+$/;
         if (!phoneRegex.test(req.body.phone)) {
             res.status(400);
-            throw new Error("Phone number should only contain digits");
+            throw new Error('Phone number should only contain digits');
         }
 
-      const existingUser = await User.findOne({ email: req.body.email });
-      if (existingUser) {
-          res.status(400);
-          throw new Error("Email already exists");
-      }
-      console.log(req.body.website)
-      let userData;
-      userData = {
-          name: req.body.name,
-          phone: req.body.phone,
-          email: req.body.email,
-          position: req.body.position,
-          companyName: req.body.companyName,
-          website: req.body.website,
-          workingHours: {
-              start: req.body.start,
-              end: req.body.end
-          },
-          languages: req.body.languages,
-          facebook: req.body.facebook,
-          instagram: req.body.instagram,
-          xTwitter: req.body.xTwitter,
-          linkedIn: req.body.linkedIn,
-      };
-      if (req.files.avatar && req.files.avatar.length > 0) {
-          userData.avatar = req.files.avatar[0].filename;
-      }
-      if (req.files.cover && req.files.cover.length > 0) {
-          userData.cover = req.files.cover[0].filename;
-      }
+        const existingUser = await User.findOne({ email: req.body.email });
+        if (existingUser) {
+            res.status(400);
+            throw new Error('Email already exists');
+        }
 
-      const user = await User.create(userData);
-      res.status(200).json(user);
-  } catch (error) {
-      res.status(400).json({ message: error.message });
-  }
+        let userData = {
+            name: req.body.name,
+            phone: req.body.phone,
+            email: req.body.email,
+            password: req.body.password,
+            position: req.body.position,
+            companyName: req.body.companyName,
+            website: req.body.website,
+            workingHours: {
+                start: req.body.start,
+                end: req.body.end
+            },
+            languages: req.body.languages,
+            facebook: req.body.facebook,
+            instagram: req.body.instagram,
+            xTwitter: req.body.xTwitter,
+            linkedIn: req.body.linkedIn,
+            role: "employee",
+        };
+
+        if (req.files.avatar && req.files.avatar.length > 0) {
+            userData.avatar = req.files.avatar[0].filename;
+        }
+        if (req.files.cover && req.files.cover.length > 0) {
+            userData.cover = req.files.cover[0].filename;
+        }
+
+        const user = await User.create(userData);
+        res.status(200).json(user);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
 }));
 
+app.put('/updateUser/:id', asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
 
-app.put('/updateUser/:id',asyncHandler(async(res, req)=>{
-        const user = await User.findById(req.params.id)
-        if(!user){
-            res.status(404)
-            throw new Error('User not found')
+    const updateFields = {};
+    for (const [key, value] of Object.entries(req.body)) {
+        if (value !== undefined) {
+            updateFields[key] = value;
         }
-        
-        const updateFields = {};
-        for (const [key, value] of Object.entries(req.body)) {
-            if (value !== undefined) {
-                updateFields[key] = value;
-            }
-        }
-        
-        const updatedUser = await User.findByIdAndUpdate(req.params.id, updateFields, {new:true})
-        
-        res.status(200).json(updatedUser)
-   
-}))
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateFields, { new: true });
+
+    res.status(200).json(updatedUser);
+}));
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-    console.log(`app is listening on port ${port}`);
+    console.log(`App is listening on port ${port}`);
 });
-
-
-
-
-
-
-// new
-// app.post("/upload/image", upload.single("avatar"), (req, res) => {
-//     const file = req.file
-//     // Respond with the file details
-//     res.send({
-//       message: "Uploaded",
-//       id: file.id,
-//       name: file.filename,
-//       contentType: file.contentType,
-//     })
-//   })
-
-//new
-// app.get("/images", async (req, res) => {
-//     try {
-//       await mongoClient.connect()
-  
-//       const database = mongoClient.db("userDataApp")
-//       const images = database.collection("photos.files")
-//       const cursor = images.find({})
-//       const count = await cursor.count()
-//       if (count === 0) {
-//         return res.status(404).send({
-//           message: "Error: No Images found",
-//         })
-//       }
-  
-//       const allImages = []
-  
-//       await cursor.forEach(item => {
-//         allImages.push(item)
-//       })
-  
-//       res.send({ files: allImages })
-//     } catch (error) {
-//       console.log(error)
-//       res.status(500).send({
-//         message: "Error Something went wrong",
-//         error,
-//       })
-//     }
-//   })

@@ -1,123 +1,40 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
-
-const workingHoursSchema = new mongoose.Schema({
-    start: {
-      type: String,
-      default: ""
-    },
-    end: {
-      type: String,
-      default: ""
-    }
-  });
-
-const userSchema = mongoose.Schema({
-    name:{
-        type: String,
-       required:[true, 'Please add your name'],
-        minlength: 2, 
-        maxlength: 50 
-    },
-    phone:{
-        type: [String],
-       required:[true, 'Please add phone number']
-    },
-    email:{
-        type: String,
-       required: [true, 'Please add email'],
-        unique: true
-    },
-    position:{
-        type: String,
-       required:[true, 'Please add a position']
-    },
-    companyName:{
-        type: String,
-        default:""
-    },
-    website: {
-        type: String,
-        validate: {
-          validator: function(value) {
-            if(value){
-              return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
-              }
-          },
-          message: props => `${props.value} is not a valid URL!`
-        },
-        // default: ""
-      },
+const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    phone: { type: String, required: true },
+    position: { type: String, required: true },
+    companyName: { type: String },
+    website: { type: String },
     workingHours: {
-        type: workingHoursSchema,
-      },
-     
-    languages: {
-        type: [String],
-        default: []
-      },
-    facebook:{
-        type:String,
-        validate: {
-            validator: function(value) {
-              if(value){
-                return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
-                }
-            },
-            message: props => `${props.value} is not a valid URL!`
-          },
-          // default: ""
+        start: { type: String },
+        end: { type: String }
     },
-    instagram:{
-        type:String,
-        validate: {
-            validator: function(value) {
-              if(value){
-                return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
-                }
-            },
-            message: props => `${props.value} is not a valid URL!`
-          },
-        // default: ""  
-    },
-    xTwitter:{
-        type:String,
-        validate: {
-            validator: function(value) {
-              if(value){
-              return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
-              }
-            },
-            message: props => `${props.value} is not a valid URL!`
-          },
-        // default: ""
-    },
-    linkedIn:{
-        type:String,
-        validate: {
-            validator: function(value) {
-              if(value){
-                return /^(ftp|http|https):\/\/[^ "]+$/.test(value);
-                }
-            },
-            message: props => `${props.value} is not a valid URL!`
-          },
-        // default: ""
-    },
-    avatar :{
-      type: String,
-      default : 'profile.png'
-    },
+    languages: [String],
+    facebook: { type: String },
+    instagram: { type: String },
+    xTwitter: { type: String },
+    linkedIn: { type: String },
+    avatar: { type: String },
+    cover: { type: String },
+    role: {type:String}
+});
 
-    cover :{
-      type: String,
-      default: "",
+userSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) {
+        return next();
     }
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+});
 
+userSchema.methods.comparePassword = async function (password) {
+    return bcrypt.compare(password, this.password);
+};
 
-},{
-    timestamps: true,
-}
-)
-
-module.exports = mongoose.model('User', userSchema)
+const User = mongoose.model('User', userSchema);
+module.exports = User;
