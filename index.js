@@ -105,7 +105,7 @@ const adminAuthMiddleware = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+        const decoded = jwt.verify(token, 'your-admin-secret-here');
         req.admin = decoded;
         next();
     } catch (err) {
@@ -121,7 +121,7 @@ const userAuthMiddleware = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
+        const decoded = jwt.verify(token, 'your-user-secret-here');
         req.user = decoded;
         next();
     } catch (err) {
