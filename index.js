@@ -1,9 +1,10 @@
 const express = require('express');
+const dotenv = require('dotenv').config();
 const mongoose = require('mongoose');
 const path = require('path');
 const asyncHandler = require('express-async-handler');
 const bodyParser = require('body-parser');
-const User = require('./userModel');
+const User = require('.//userModel');
 const Admin = require('./adminModel');
 const Grid = require('gridfs-stream');
 const multer = require('multer');
@@ -26,7 +27,7 @@ app.set('view engine', 'ejs');
 
 const connectDB = async () => {
     try {
-        await mongoose.connect('your-mongodb-uri-here', {
+        await mongoose.connect(process.env.MONGO_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true
         });
@@ -39,7 +40,7 @@ const connectDB = async () => {
 
 connectDB();
 
-const conn = mongoose.createConnection('your-mongodb-uri-here');
+const conn = mongoose.createConnection(process.env.MONGO_URI);
 let gfs = conn.once('open', () => {
     gfs = new mongoose.mongo.GridFSBucket(conn.db, {
         bucketName: 'uploads'
@@ -64,7 +65,7 @@ const fileFilterPDF = (req, file, cb) => {
     }
 };
 
-const url = 'your-mongodb-uri-here';
+const url = process.env.MONGO_URI;
 const mongoClient = new mongoose.mongo.MongoClient(url);
 const storage = new GridFsStorage({
     url,
@@ -104,7 +105,7 @@ const adminAuthMiddleware = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, 'your-admin-secret-here');
+        const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
         req.admin = decoded;
         next();
     } catch (err) {
@@ -120,7 +121,7 @@ const userAuthMiddleware = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, 'your-user-secret-here');
+        const decoded = jwt.verify(token, process.env.USER_JWT_SECRET);
         req.user = decoded;
         next();
     } catch (err) {
@@ -130,8 +131,12 @@ const userAuthMiddleware = (req, res, next) => {
 
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
+    console.log(email)
+    console.log(password)
+
     try {
         let admin = await Admin.findOne({ email });
+        console.log(admin)
         if (admin) {
             const isMatch = await admin.comparePassword(password);
             if (!isMatch) {
@@ -153,9 +158,11 @@ app.post('/login', async (req, res) => {
 
         return res.status(401).json({ message: 'Invalid username or password' });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: 'Server error' });
     }
 });
+
 
 app.get('/getImage/:filename', async (req, res) => {
     try {
