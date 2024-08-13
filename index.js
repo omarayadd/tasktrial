@@ -153,7 +153,7 @@ app.post('/login', async (req, res) => {
                 return res.status(401).json({ message: 'Invalid email or password' });
             }
             const token = jwt.sign({ id: user._id, role: user.role }, 'your-user-secret-here', { expiresIn: '1h' });
-            return res.json({ token, role: user.role });
+            return res.json({ token, role: user.role, id:user._id });
         }
 
         return res.status(401).json({ message: 'Invalid username or password' });
