@@ -349,3 +349,28 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
     console.log(`App is listening on port ${port}`);
 });
+
+
+app.delete('/deleteAllUsers', asyncHandler(async (req, res) => {
+    try {
+        const result = await User.deleteMany({});
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: 'No users found to delete' });
+        }
+        res.status(200).json({ message: `Deleted ${result.deletedCount} users` });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error });
+    }
+}));
+
+app.delete('/deleteUser/:id', asyncHandler(async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.status(200).json({ message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error });
+    }
+}));
