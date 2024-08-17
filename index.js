@@ -140,7 +140,7 @@ app.post('/login', async (req, res) => {
         if (admin) {
             const isMatch = await admin.comparePassword(password);
             if (!isMatch) {
-                return res.status(401).json({ message: 'Invalid username or password' });
+                return res.status(401).json({ message: 'Invalid email or password' });
             }
             const token = jwt.sign({ id: admin._id, role: admin.role }, 'your-admin-secret-here', { expiresIn: '1h' });
             return res.json({ token, role: admin.role });
@@ -156,7 +156,7 @@ app.post('/login', async (req, res) => {
             return res.json({ token, role: user.role, id:user._id });
         }
 
-        return res.status(401).json({ message: 'Invalid username or password' });
+        return res.status(401).json({ message: 'Invalid email or password' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
@@ -249,7 +249,7 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
     res.status(200).json(user);
 }));
 
-app.get('/allUsers', adminAuthMiddleware, asyncHandler(async (req, res) => {
+app.get('/allUsers', asyncHandler(async (req, res) => {
     const users = await User.find();
     if (!users) {
         res.status(404);
@@ -275,7 +275,8 @@ app.get('/allUsers', adminAuthMiddleware, asyncHandler(async (req, res) => {
 
 app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), asyncHandler(async (req, res) => {
     try {
-        if (!req.body.name || !req.body.email || !req.body.phone || !req.body.position || !req.body.password) {
+        console.log(req.body.firstname)
+        if (!req.body.firstname || !req.body.email || !req.body.phone || !req.body.position || !req.body.password) {
             res.status(400);
             throw new Error('Please fill the missing data');
         }
@@ -293,7 +294,9 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
         }
 
         let userData = {
-            name: req.body.name,
+            // name: req.body.name,
+            fisrtname: req.body.firstname,
+            lastname: req.body.lastname,
             phone: req.body.phone,
             email: req.body.email,
             password: req.body.password,
