@@ -6,6 +6,7 @@ const asyncHandler = require('express-async-handler');
 const bodyParser = require('body-parser');
 const User = require('.//userModel');
 const Admin = require('./adminModel');
+const Company = require('./companyModel')
 const Grid = require('gridfs-stream');
 const multer = require('multer');
 const { GridFsStorage } = require('multer-gridfs-storage');
@@ -47,35 +48,32 @@ let gfs = conn.once('open', () => {
     });
 });
 
+
+
+
+
 const fileFilterImage = (req, file, cb) => {
     const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (imageTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('File must be of type image (jpeg, png, gif)'), false);
+        cb(new Error('Avatar must be of type image (jpeg, png, gif, webp)'), false);
     }
 };
 
-const fileFilterPDF = (req, file, cb) => {
-    const pdfTypes = ['application/pdf'];
-    if (pdfTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('File must be of type PDF'), false);
-    }
-};
 
 const url = process.env.MONGO_URI;
 const mongoClient = new mongoose.mongo.MongoClient(url);
+
 const storage = new GridFsStorage({
     url,
     file: (req, file) => {
-        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+        if (file.fieldname === 'avatar') {
             return {
                 bucketName: 'photos',
                 filename: `${Date.now()}_${file.originalname}`,
             };
-        } else {
+        } else if (file.fieldname === 'cover') {
             return {
                 bucketName: 'covers',
                 filename: `${Date.now()}_${file.originalname}`,
@@ -90,22 +88,37 @@ const upload = multer({
         if (file.fieldname === 'avatar') {
             fileFilterImage(req, file, cb);
         } else if (file.fieldname === 'cover') {
-            fileFilterPDF(req, file, cb);
+            fileFilterImage(req, file, cb);
         } else {
             cb(new Error('Invalid fieldname'), false);
         }
     }
 });
 
-const adminAuthMiddleware = (req, res, next) => {
+// const userAuthMiddleware = (req, res, next) => {
+//     const token = req.header('Authorization').replace('Bearer ', '');
+
+//     if (!token) {
+//         return res.status(401).json({ message: 'No token, authorization denied' });
+//     }
+
+//     try {
+//         const decoded = jwt.verify(token, 'your-user-secret-here');
+//         req.user = decoded;
+//         next();
+//     } catch (err) {
+//         res.status(401).json({ message: 'Token is not valid' });
+//     }
+// };
+
+
+const companyAdminAuthMiddleware = (req, res, next) => {
     const token = req.header('Authorization').replace('Bearer ', '');
-
-    if (!token) {
-        return res.status(401).json({ message: 'No token, authorization denied' });
-    }
-
     try {
-        const decoded = jwt.verify(token, 'your-admin-secret-here');
+        const decoded = jwt.verify(token, 'companyAdmin-secret');
+        if (!decoded.role.includes('Admin')) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
         req.admin = decoded;
         next();
     } catch (err) {
@@ -113,21 +126,6 @@ const adminAuthMiddleware = (req, res, next) => {
     }
 };
 
-const userAuthMiddleware = (req, res, next) => {
-    const token = req.header('Authorization').replace('Bearer ', '');
-
-    if (!token) {
-        return res.status(401).json({ message: 'No token, authorization denied' });
-    }
-
-    try {
-        const decoded = jwt.verify(token, 'your-user-secret-here');
-        req.user = decoded;
-        next();
-    } catch (err) {
-        res.status(401).json({ message: 'Token is not valid' });
-    }
-};
 
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -142,7 +140,8 @@ app.post('/login', async (req, res) => {
             if (!isMatch) {
                 return res.status(401).json({ message: 'Invalid email or password' });
             }
-            const token = jwt.sign({ id: admin._id, role: admin.role }, 'your-admin-secret-here', { expiresIn: '1h' });
+            let token
+            token = jwt.sign({ id: admin._id, role: admin.role,  companyId: admin.companyId }, 'companyAdmin-secret', { expiresIn: '1h' });
             return res.json({ token, role: admin.role });
         }
 
@@ -249,8 +248,17 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
     res.status(200).json(user);
 }));
 
-app.get('/allUsers', asyncHandler(async (req, res) => {
-    const users = await User.find();
+app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    let users
+    if(req.admin.role === 'superAdmin'){
+        users = await User.find();
+    }
+    else {
+        const companyAdmin = await Admin.findById(req.admin.id);
+        console.log(companyAdmin.companyId )
+        users = await User.find({ companyId: companyAdmin.companyId });
+    }
+    
     if (!users) {
         res.status(404);
         throw new Error('No Users are found');
@@ -273,29 +281,64 @@ app.get('/allUsers', asyncHandler(async (req, res) => {
     res.status(200).json(usersWithUrls);
 }));
 
-app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), asyncHandler(async (req, res) => {
+
+app.post('/createCompanyAdmin', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    if(req.admin.role !== 'superAdmin'){
+        throw new Error('Not Authorized');
+    }
+    const { email, password, companyName, employeeLimit } = req.body;
+
+    const company = await Company.create({ name: companyName });
+    const admin = await Admin.create({
+        email,
+        password,
+        role: companyName + 'Admin',
+        companyId: company._id,
+        employeeLimit: employeeLimit || 0,
+    });
+    company.companyAdmin = admin._id;
+    await company.save();
+
+    res.status(201).json({ admin, company });
+}));
+
+
+
+app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     try {
-        console.log(req.body.firstname)
-        if (!req.body.firstname || !req.body.email || !req.body.phone || !req.body.position || !req.body.password) {
+        const { firstname, email, phone, position, password, companyName } = req.body;
+
+        if (!firstname || !email || !phone || !position || !password || !companyName) {
             res.status(400);
-            throw new Error('Please fill the missing data');
+            throw new Error('Please fill in the required fields');
         }
 
         const phoneRegex = /^\d+$/;
-        if (!phoneRegex.test(req.body.phone)) {
+        if (!phoneRegex.test(phone)) {
             res.status(400);
             throw new Error('Phone number should only contain digits');
         }
 
-        const existingUser = await User.findOne({ email: req.body.email });
+        const existingUser = await User.findOne({ email });
         if (existingUser) {
             res.status(400);
             throw new Error('Email already exists');
         }
 
+    
+        if (req.admin.role === companyName + 'Admin') {
+            const companyAdmin = await Admin.findById(req.admin.id);
+
+            if (0 >= companyAdmin.employeeLimit) {
+                return res.status(400).json({ message: 'Employee limit reached for your company' });
+            }
+        }
+        else if(req.admin.role!=='superAdmin'){
+            throw new Error('Cannot add employee in this company');
+        }
+
         let userData = {
-            // name: req.body.name,
-            fisrtname: req.body.firstname,
+            firstname: req.body.firstname,
             lastname: req.body.lastname,
             phone: req.body.phone,
             email: req.body.email,
@@ -313,29 +356,56 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
             xTwitter: req.body.xTwitter,
             linkedIn: req.body.linkedIn,
             role: "employee",
+            companyId : req.admin.companyId
         };
 
-        if (req.files.avatar && req.files.avatar.length > 0) {
+        if (req.files && req.files.avatar && req.files.avatar.length > 0) {
             userData.avatar = req.files.avatar[0].filename;
         }
-        if (req.files.cover && req.files.cover.length > 0) {
+        if (req.files && req.files.cover && req.files.cover.length > 0) {
             userData.cover = req.files.cover[0].filename;
         }
 
+
         const user = await User.create(userData);
-        res.status(200).json(user);
+
+
+        let company = await Company.findOne({ name: companyName });
+        if (!company) {
+            company = new Company({
+                name: companyName,
+                companyAdmin: req.admin._id,
+                employees: [user._id],
+            });
+        } else {
+            company.employees.push(user._id);
+        }
+
+        await company.save();
+        if (req.admin.role === companyName + 'Admin') {
+            await Admin.findByIdAndUpdate(req.admin.id, {
+                $inc: { employeeLimit: -1 }
+            });
+        }
+        res.status(200).json({ user, company });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
 }));
 
-app.put('/updateUser/:id', asyncHandler(async (req, res) => {
+
+app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) {
         res.status(404);
         throw new Error('User not found');
     }
 
+    if (req.admin.role !== 'superAdmin') {
+        if (user.companyId.toString() !== req.admin.companyId.toString()) {
+            return res.status(403).json({ message: 'Unauthorized: You can only update employees of your own company' });
+        }
+    }
     const updateFields = {};
     for (const [key, value] of Object.entries(req.body)) {
         if (value !== undefined) {
@@ -348,10 +418,7 @@ app.put('/updateUser/:id', asyncHandler(async (req, res) => {
     res.status(200).json(updatedUser);
 }));
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-    console.log(`App is listening on port ${port}`);
-});
+
 
 
 app.delete('/deleteAllUsers', asyncHandler(async (req, res) => {
@@ -377,3 +444,11 @@ app.delete('/deleteUser/:id', asyncHandler(async (req, res) => {
         res.status(500).json({ message: 'Server error', error });
     }
 }));
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+    console.log(`App is listening on port ${port}`);
+});
+
+
+

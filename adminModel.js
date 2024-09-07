@@ -4,7 +4,9 @@ const bcrypt = require('bcrypt');
 const adminSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, default: 'admin' }
+    role: { type: String, required: true },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },  // For companyAdmin
+    employeeLimit: { type: Number, default: 0 },
 });
 
 // Hash the password before saving the admin model
