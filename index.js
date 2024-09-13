@@ -282,6 +282,59 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
 }));
 
 
+app.get('/allCompanies', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    let comapnies
+    if(req.admin.role === 'superAdmin'){
+        comapnies = await Company.find().select('name');
+    }
+    else {
+        throw new Error('Not Authoraized');
+    }
+    
+    if (!comapnies) {
+        res.status(404);
+        throw new Error('No comapnies are found');
+    }
+
+    res.status(200).json(comapnies);
+}));
+
+
+app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    
+    if(req.admin.role === 'superAdmin'){
+        comapnies = await Company.find().select('name');
+    }
+    else {
+        throw new Error('Not Authoraized');
+    }
+    
+    const { companyName } = req.query;
+    
+    if (!companyName) {
+        res.status(400);
+        throw new Error('Please provide a company name');
+    }
+    const company = await Company.findOne({ name: companyName }).select('_id');
+
+    if (!company) {
+        res.status(404);
+        throw new Error('Company not found');
+    }
+
+    // Find users based on the provided company name
+    const users = await User.find({ companyId: company });
+
+    if (!users || users.length === 0) {
+        res.status(404);
+        throw new Error('No users found for the specified company');
+    }
+
+    res.status(200).json(users); // Return user details
+}));
+
+
+
 app.post('/createCompanyAdmin', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     if(req.admin.role !== 'superAdmin'){
         throw new Error('Not Authorized');
