@@ -79,17 +79,21 @@ const storage = new GridFsStorage({
                 filename: `${Date.now()}_${file.originalname}`,
             };
         }
+        else if (file.fieldname === 'logo') {
+            return {
+                bucketName: 'logos',
+                filename: `${Date.now()}_${file.originalname}`,
+            };
+        }
     },
 });
 
 const upload = multer({
     storage,
     fileFilter: (req, file, cb) => {
-        if (file.fieldname === 'avatar') {
+        if (file.fieldname === 'avatar' || file.fieldname==='logo' || file.fieldname ==='cover') {
             fileFilterImage(req, file, cb);
-        } else if (file.fieldname === 'cover') {
-            fileFilterImage(req, file, cb);
-        } else {
+        }else {
             cb(new Error('Invalid fieldname'), false);
         }
     }
@@ -335,13 +339,19 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
 
 
 
-app.post('/createCompanyAdmin', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     if(req.admin.role !== 'superAdmin'){
         throw new Error('Not Authorized');
     }
     const { email, password, companyName, employeeLimit } = req.body;
 
-    const company = await Company.create({ name: companyName });
+    const company = await Company.create({ name: companyName});
+    if (req.files && req.files.logo && req.files.logo.length > 0) {
+        company.logo = req.files.logo[0].filename;
+    }
+    // if (req.files && req.files.avatar && req.files.avatar.length > 0) {
+    //     userData.avatar = req.files.avatar[0].filename;
+    // }
     const admin = await Admin.create({
         email,
         password,
