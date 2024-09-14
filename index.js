@@ -355,7 +355,7 @@ app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }]), c
     const admin = await Admin.create({
         email,
         password,
-        role: companyName + 'Admin',
+        role: 'Admin',
         companyId: company._id,
         employeeLimit: employeeLimit || 0,
     });
