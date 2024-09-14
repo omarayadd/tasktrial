@@ -388,8 +388,9 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
             throw new Error('Email already exists');
         }
 
-    
-        if (req.admin.role === companyName + 'Admin') {
+        companyID = req.admin.companyID
+        company = await Company.findOne({companyID})
+        if (req.admin.role === 'Admin' && req.body.company === company.name) {
             const companyAdmin = await Admin.findById(req.admin.id);
 
             if (0 >= companyAdmin.employeeLimit) {
