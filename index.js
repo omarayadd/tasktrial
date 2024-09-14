@@ -146,7 +146,7 @@ app.post('/login', async (req, res) => {
             }
             let token
             token = jwt.sign({ id: admin._id, role: admin.role,  companyId: admin.companyId }, 'companyAdmin-secret', { expiresIn: '1h' });
-            return res.json({ token, role: admin.role });
+            return res.json({ token, role: admin.role,  companyId: admin.companyId });
         }
 
         let user = await User.findOne({ email });
@@ -388,9 +388,9 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
             throw new Error('Email already exists');
         }
 
-        companyID = req.admin.companyID
-        company = await Company.findOne({companyID})
-        if (req.admin.role === 'Admin' && req.body.company === company.name) {
+        let companyID = req.admin.companyId
+        let companyy = await Company.findOne({ _id:new  mongoose.Types.ObjectId(companyID) });
+        if (req.admin.role === 'Admin' && req.body.companyName === companyy.name) {
             const companyAdmin = await Admin.findById(req.admin.id);
 
             if (0 >= companyAdmin.employeeLimit) {

@@ -8,4 +8,5 @@ const companySchema = new mongoose.Schema({
     logo : { type: String },
 });
 
-module.exports = mongoose.model('Company', companySchema);
+const Company = mongoose.model('Company', companySchema);
+module.exports =Company;
