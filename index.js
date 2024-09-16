@@ -289,7 +289,8 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
 app.get('/allCompanies', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     let comapnies
     if(req.admin.role === 'superAdmin'){
-        comapnies = await Company.find().select('name');
+        // comapnies = await Company.find().select('name');
+        comapnies = await Company.find()
     }
     else {
         throw new Error('Not Authoraized');
