@@ -198,6 +198,37 @@ app.get('/getImage/:filename', async (req, res) => {
     }
 });
 
+app.get('/getLogo/:filename', async (req, res) => {
+    try {
+        await mongoClient.connect();
+
+        const database = mongoClient.db('userDataApp');
+        const imageBucket = new mongoose.mongo.GridFSBucket(database, {
+            bucketName: 'logos',
+        });
+
+        let downloadStream = imageBucket.openDownloadStreamByName(req.params.filename);
+
+        downloadStream.on('data', function (data) {
+            return res.status(200).write(data);
+        });
+
+        downloadStream.on('error', function () {
+            return res.status(404).send({ error: 'Image not found' });
+        });
+
+        downloadStream.on('end', () => {
+            return res.end();
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).send({
+            message: 'Error Something went wrong',
+            error,
+        });
+    }
+});
+
 app.get('/getCover/:filename', async (req, res) => {
     try {
         await mongoClient.connect();
@@ -259,8 +290,9 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
     }
     else {
         const companyAdmin = await Admin.findById(req.admin.id);
-        console.log(companyAdmin.companyId )
-        users = await User.find({ companyId: companyAdmin.companyId });
+        let companyy = await Company.findById(companyAdmin.companyId)
+        companyName = companyy.name
+        users = await User.find({ companyName: companyName});
     }
     
     if (!users) {
@@ -287,23 +319,69 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
 
 
 app.get('/allCompanies', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
-    let comapnies
+    let companies
+    let companyWithUrls
     if(req.admin.role === 'superAdmin'){
-        // comapnies = await Company.find().select('name');
-        comapnies = await Company.find()
-    }
-    else {
-        throw new Error('Not Authoraized');
+        companies = await Company.aggregate([
+            {
+                $lookup: {
+                    from: 'admins', // The name of the admin collection
+                    localField: 'companyAdmin', // Field in the Company collection
+                    foreignField: '_id', // Field in the Admin collection
+                    as: 'adminDetails' // Alias for the joined data
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    employees: 1,
+                    logo: 1,
+                    __v: 1,
+                    'adminDetails.email': 1, // Keep only email from the admin details
+                    'adminDetails.employeeLimit': 1 // Keep only employeeLimit from the admin details
+                }
+            }
+        ]);
+
+        companyWithUrls = companies.map(company => {
+            const companyData = { ...company }; // Shallow copy of the company object
+            if (companyData.logo) {
+                companyData.logo = `${req.protocol}://${req.get('host')}/getLogo/${companyData.logo}`;
+            }
+            return companyData; // Return companyData even if there's no logo
+        });
+    } else {
+        throw new Error('Not Authorized');
     }
     
-    if (!comapnies) {
+    if (!companyWithUrls) {
         res.status(404);
         throw new Error('No comapnies are found');
     }
 
-    res.status(200).json(comapnies);
+    res.status(200).json(companyWithUrls);
 }));
 
+
+app.delete('/deleteCompany/:id', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    console.log("saaaaaaaaaaaa")
+    try {
+        if (req.admin.role !== 'superAdmin') {
+            return res.status(403).json({ message: 'Not Authorized' }); // 403 Forbidden for unauthorized access
+        }
+
+        const company = await Company.findByIdAndDelete(req.params.id);
+
+        if (!company) {
+            return res.status(404).json({ message: 'Company not found' }); // Return 404 if the company is not found
+        }
+
+        res.status(200).json({ message: 'Company deleted successfully' });
+    } catch (error) {
+        console.error(error); // Log the error for debugging
+        res.status(500).json({ message: 'Server error', error: error.message }); // Send the error message
+    }
+}));
 
 app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     
@@ -482,7 +560,6 @@ app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, 
 
     res.status(200).json(updatedUser);
 }));
-
 
 
 
