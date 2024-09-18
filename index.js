@@ -417,6 +417,33 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
 }));
 
 
+app.get('/filterUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    let users
+    const { userName } = req.query;
+    
+    if (!userName) {
+        res.status(400);
+        throw new Error('Please provide a user name');
+    }
+    console.log(userName)
+    if(req.admin.role === 'superAdmin'){
+        users = await User.find({ firstname: userName});
+    }
+    else {
+        throw new Error('Not Authoraized');
+    }
+    
+    
+    if (!users) {
+        res.status(400);
+        throw new Error('User with this name not found');
+    }
+
+    res.status(200).json(users); // Return user details
+}));
+
+
+
 
 app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     if(req.admin.role !== 'superAdmin'){
@@ -552,7 +579,20 @@ app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, 
     const updateFields = {};
     for (const [key, value] of Object.entries(req.body)) {
         if (value !== undefined) {
+            let company
+            if (key === 'companyName'){
+                // console.log("asasasas")
+                company = await Company.find({name:value})
+                if (company.length!==0){
+                    updateFields[key] = value;
+                }
+                else{
+                    throw new Error('Company not found');
+                }
+            }
+            else{ 
             updateFields[key] = value;
+            }
         }
     }
 
@@ -584,6 +624,49 @@ app.delete('/deleteUser/:id', asyncHandler(async (req, res) => {
         res.status(200).json({ message: 'User deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
+    }
+}));
+
+app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }]), companyAdminAuthMiddleware, upload.single('logo'), asyncHandler(async (req, res) => {
+    try {
+        // Find the company
+        const company = await Company.findById(req.params.id);
+        // const admin = await Admin.findOne({companyId : company._id.toString()})
+
+        if(req.admin.role !== 'superAdmin'){
+            throw new Error('Not Authorized');
+        }
+        // Check if the admin trying to update is the admin of this company
+        // if (!company || company.companyAdmin.toString() !== req.admin._id.toString()) {
+        //     return res.status(403).json({ message: 'Not Authorized to update this company' });
+        // }
+
+        // Update company details (name, employee limit)
+        const { name} = req.body;
+
+        if (name) {
+            company.name = name;
+        }
+
+        // if (employeeLimit) {
+        //     admin.employeeLimit = employeeLimit;
+        // }
+
+        if (req.files && req.files.logo && req.files.logo.length > 0) {
+            company.logo = req.files.logo[0].filename;
+        }
+
+
+        await company.save();
+        // await admin.save();
+
+        res.status(200).json({
+            message: 'Company updated successfully',
+            company
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 }));
 
