@@ -637,26 +637,30 @@ app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }]), c
     try {
         // Find the company
         const company = await Company.findById(req.params.id);
-        // const admin = await Admin.findOne({companyId : company._id.toString()})
+        const admin = await Admin.findOne({companyId : company._id.toString()})
 
-        if(req.admin.role !== 'superAdmin'){
-            throw new Error('Not Authorized');
-        }
-        // Check if the admin trying to update is the admin of this company
-        // if (!company || company.companyAdmin.toString() !== req.admin._id.toString()) {
-        //     return res.status(403).json({ message: 'Not Authorized to update this company' });
+        // if(req.admin.role !== 'superAdmin'){
+        //     throw new Error('Not Authorized');
         // }
+        // Check if the admin trying to update is the admin of this company
+        if (!company || (req.admin.role!== 'superAdmin' && company.companyAdmin.toString() !== req.admin._id.toString())) {
+            return res.status(403).json({ message: 'Not Authorized to update this company' });
+        }
 
         // Update company details (name, employee limit)
-        const { name} = req.body;
+        const { name, employeeLimit, email} = req.body;
 
         if (name) {
             company.name = name;
         }
 
-        // if (employeeLimit) {
-        //     admin.employeeLimit = employeeLimit;
-        // }
+        if (employeeLimit) {
+            admin.employeeLimit = employeeLimit;
+        }
+
+        if (email) {
+            admin.email = email;
+        }
 
         if (req.files && req.files.logo && req.files.logo.length > 0) {
             company.logo = req.files.logo[0].filename;
@@ -664,7 +668,7 @@ app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }]), c
 
 
         await company.save();
-        // await admin.save();
+        await admin.save();
 
         res.status(200).json({
             message: 'Company updated successfully',
