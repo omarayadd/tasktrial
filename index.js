@@ -398,7 +398,7 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
         res.status(400);
         throw new Error('Please provide a company name');
     }
-    const company = await Company.findOne({ name: companyName }).select('_id');
+    const company = await Company.findOne({ name: companyName }).select('name');
 
     if (!company) {
         res.status(404);
@@ -406,8 +406,10 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
     }
 
     // Find users based on the provided company name
-    const users = await User.find({ companyId: company });
 
+    console.log(company)
+    const users = await User.find({companyName: company.name});
+    console.log(users)
     if (!users || users.length === 0) {
         res.status(404);
         throw new Error('No users found for the specified company');
@@ -425,9 +427,13 @@ app.get('/filterUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res
         res.status(400);
         throw new Error('Please provide a user name');
     }
-    console.log(userName)
     if(req.admin.role === 'superAdmin'){
-        users = await User.find({ firstname: userName});
+        users = await User.find({ 
+            firstname: { 
+                $regex: userName, 
+                $options: 'i' // 'i' for case-insensitive search
+            }
+        });
     }
     else {
         throw new Error('Not Authoraized');
