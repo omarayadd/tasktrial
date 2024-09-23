@@ -404,12 +404,7 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
         res.status(404);
         throw new Error('Company not found');
     }
-
-    // Find users based on the provided company name
-
-    console.log(company)
-    const users = await User.find({companyName: company.name});
-    console.log(users)
+    let users = await User.find({companyName: company.name});
     if (!users || users.length === 0) {
         res.status(404);
         throw new Error('No users found for the specified company');
