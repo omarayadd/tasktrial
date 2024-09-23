@@ -414,6 +414,23 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
         res.status(404);
         throw new Error('No users found for the specified company');
     }
+    users = users.map(user => {
+        // Adjust avatar URL
+        if (user.avatar) {
+            if (user.avatar === 'profile.png') {
+                user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`;
+            } else {
+                user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
+            }
+        }
+
+        // Adjust cover URL
+        if (user.cover) {
+            user.cover = `${req.protocol}://${req.get('host')}/getCover/${user.cover}`;
+        }
+
+        return user;
+    });
 
     res.status(200).json(users); // Return user details
 }));
@@ -444,6 +461,24 @@ app.get('/filterUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res
         res.status(400);
         throw new Error('User with this name not found');
     }
+
+    users = users.map(user => {
+        // Adjust avatar URL
+        if (user.avatar) {
+            if (user.avatar === 'profile.png') {
+                user.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${user.avatar}`;
+            } else {
+                user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
+            }
+        }
+
+        // Adjust cover URL
+        if (user.cover) {
+            user.cover = `${req.protocol}://${req.get('host')}/getCover/${user.cover}`;
+        }
+
+        return user;
+    });
 
     res.status(200).json(users); // Return user details
 }));
@@ -602,28 +637,6 @@ app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, 
 
     // Save the user, which will trigger the pre-save hook for password hashing if the password has been modified
     const updatedUserr = await user.save();
-
-
-    // const updateFields = {};
-    // for (const [key, value] of Object.entries(req.body)) {
-    //     if (value !== undefined) {
-    //         let company
-    //         if (key === 'companyName'){
-    //             // console.log("asasasas")
-    //             company = await Company.find({name:value})
-    //             if (company.length!==0){
-    //                 updateFields[key] = value;
-    //             }
-    //             else{
-    //                 throw new Error('Company not found');
-    //             }
-    //         }
-    //         else{ 
-    //         updateFields[key] = value;
-    //         }
-    //     }
-    // }
-    // const updatedUser = await User.findByIdAndUpdate(req.params.id, updateFields, { new: true });
 
     res.status(200).json(updatedUserr);
 }));
