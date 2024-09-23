@@ -582,29 +582,50 @@ app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, 
             return res.status(403).json({ message: 'Unauthorized: You can only update employees of your own company' });
         }
     }
-    const updateFields = {};
-    for (const [key, value] of Object.entries(req.body)) {
-        if (value !== undefined) {
-            let company
-            if (key === 'companyName'){
-                // console.log("asasasas")
-                company = await Company.find({name:value})
-                if (company.length!==0){
-                    updateFields[key] = value;
-                }
-                else{
+
+    Object.keys(req.body).forEach(async key => {
+        if (req.body[key] !== undefined) {
+            if (key === 'companyName') {
+                // Check if the company exists
+                const company = await Company.findOne({ name: req.body.companyName });
+                if (company) {
+                    user.companyName = req.body.companyName;
+                    user.companyId = company._id;  // Optionally update the companyId too
+                } else {
                     throw new Error('Company not found');
                 }
-            }
-            else{ 
-            updateFields[key] = value;
+            } else {
+                user[key] = req.body[key];
             }
         }
-    }
+    });
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateFields, { new: true });
+    // Save the user, which will trigger the pre-save hook for password hashing if the password has been modified
+    const updatedUserr = await user.save();
 
-    res.status(200).json(updatedUser);
+
+    // const updateFields = {};
+    // for (const [key, value] of Object.entries(req.body)) {
+    //     if (value !== undefined) {
+    //         let company
+    //         if (key === 'companyName'){
+    //             // console.log("asasasas")
+    //             company = await Company.find({name:value})
+    //             if (company.length!==0){
+    //                 updateFields[key] = value;
+    //             }
+    //             else{
+    //                 throw new Error('Company not found');
+    //             }
+    //         }
+    //         else{ 
+    //         updateFields[key] = value;
+    //         }
+    //     }
+    // }
+    // const updatedUser = await User.findByIdAndUpdate(req.params.id, updateFields, { new: true });
+
+    res.status(200).json(updatedUserr);
 }));
 
 
