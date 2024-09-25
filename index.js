@@ -144,9 +144,10 @@ app.post('/login', async (req, res) => {
             if (!isMatch) {
                 return res.status(401).json({ message: 'Invalid email or password' });
             }
+            const company = await Company.findById(admin.companyId).select('name');
             let token
             token = jwt.sign({ id: admin._id, role: admin.role,  companyId: admin.companyId }, 'companyAdmin-secret', { expiresIn: '1h' });
-            return res.json({ token, role: admin.role,  companyId: admin.companyId });
+            return res.json({ token, role: admin.role,  companyId: admin.companyId, companyName: company ? company.name : null});
         }
 
         let user = await User.findOne({ email });
@@ -263,6 +264,24 @@ app.get('/getCover/:filename', async (req, res) => {
 app.get('/', (req, res) => {
     res.render('upload');
 });
+
+
+app.get('/getCompany/:id',companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    if(req.admin.role !== 'superAdmin'){
+        res.status(404);
+        throw new Error('Not Authorized');
+    }
+    const company = await Company.findById(req.params.id);
+    if (!company) {
+        res.status(404);
+        throw new Error('Company not found');
+    }
+    if (company.logo) {
+        company.logo = `${req.protocol}://${req.get('host')}/getLogo/${company.logo}`;        
+    }
+    res.status(200).json(company);
+}));
+
 
 app.get('/getUser/:id', asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
@@ -477,6 +496,47 @@ app.get('/filterUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res
 
     res.status(200).json(users); // Return user details
 }));
+
+
+app.get('/filterCompanies', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    let companies
+    const { name } = req.query;
+    
+    if (!name) {
+        res.status(400);
+        throw new Error('Please provide a compamy name');
+    }
+    if(req.admin.role === 'superAdmin'){
+        companies = await Company.find({ 
+            name: { 
+                $regex: name, 
+                $options: 'i' // 'i' for case-insensitive search
+            }
+        });
+    }
+    else {
+        throw new Error('Not Authoraized');
+    }
+    
+    
+    if (!companies) {
+        res.status(400);
+        throw new Error('User with this name not found');
+    }
+
+    companies = companies.map(company => {
+        // Adjust avatar URL
+        if (company.logo) {
+            company.logo = `${req.protocol}://${req.get('host')}/getLogo/${company.logo}`;
+        }
+
+        return company;
+    });
+
+    res.status(200).json(companies); // Return user details
+}));
+
+
 
 
 
