@@ -279,6 +279,16 @@ app.get('/getCompany/:id',companyAdminAuthMiddleware, asyncHandler(async (req, r
     if (company.logo) {
         company.logo = `${req.protocol}://${req.get('host')}/getLogo/${company.logo}`;        
     }
+    if (company.companyAdmin) {
+        const admin = await Admin.findById(company.companyAdmin).select('email employeeLimit');
+        if (admin) {
+            // Add admin email and employee limit to the company object
+            company._doc.admin_email = admin.email; // `_doc` is used to add non-schema fields in Mongoose
+            company._doc.employeeLimit = admin.employeeLimit;
+        }
+    }
+
+
     res.status(200).json(company);
 }));
 
@@ -524,15 +534,24 @@ app.get('/filterCompanies', companyAdminAuthMiddleware, asyncHandler(async (req,
         throw new Error('User with this name not found');
     }
 
-    companies = companies.map(company => {
-        // Adjust avatar URL
+    companies = await Promise.all(companies.map(async company => {
         if (company.logo) {
             company.logo = `${req.protocol}://${req.get('host')}/getLogo/${company.logo}`;
         }
 
-        return company;
-    });
+        if (company.companyAdmin) {
+            const admin = await Admin.findById(company.companyAdmin).select('email employeeLimit');
+            if (admin) {
+                company = {
+                    ...company.toObject(),
+                    admin_email: admin.email,
+                    employee_limit: admin.employeeLimit
+                };
+            }
+        }
 
+        return company;
+    }));
     res.status(200).json(companies); // Return user details
 }));
 
