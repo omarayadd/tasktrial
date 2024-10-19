@@ -279,6 +279,9 @@ app.get('/getCompany/:id',companyAdminAuthMiddleware, asyncHandler(async (req, r
     if (company.logo) {
         company.logo = `${req.protocol}://${req.get('host')}/getLogo/${company.logo}`;        
     }
+    if (company.cover) {
+        company.cover = `${req.protocol}://${req.get('host')}/getCover/${company.cover}`;        
+    }
     if (company.companyAdmin) {
         const admin = await Admin.findById(company.companyAdmin).select('email employeeLimit');
         if (admin) {
@@ -306,10 +309,17 @@ app.get('/getUser/:id', asyncHandler(async (req, res) => {
             user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
         }
     }
-    if (user.cover) {
-        user.cover = `${req.protocol}://${req.get('host')}/getCover/${user.cover}`;
-    }
-    res.status(200).json(user);
+
+    const company = await Company.findOne({ name: user.companyName });
+    if (company && company.cover) {
+        company.cover = `${req.protocol}://${req.get('host')}/getCover/${company.cover}`;
+    } 
+
+    const response = {
+        user: user,
+        companyCover: company ? company.cover : null
+    };
+    res.status(200).json(response);
 }));
 
 app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
@@ -337,9 +347,6 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
                 userData.avatar = `${req.protocol}://${req.get('host')}/getImage/${userData.avatar}`;
             }
         }
-        if (userData.cover) {
-            userData.cover = `${req.protocol}://${req.get('host')}/getCover/${userData.cover}`;
-        }
         return userData;
     });
 
@@ -365,6 +372,7 @@ app.get('/allCompanies', companyAdminAuthMiddleware, asyncHandler(async (req, re
                     name: 1,
                     employees: 1,
                     logo: 1,
+                    cover: 1,
                     __v: 1,
                     'adminDetails.email': 1, // Keep only email from the admin details
                     'adminDetails.employeeLimit': 1 // Keep only employeeLimit from the admin details
@@ -376,6 +384,9 @@ app.get('/allCompanies', companyAdminAuthMiddleware, asyncHandler(async (req, re
             const companyData = { ...company }; // Shallow copy of the company object
             if (companyData.logo) {
                 companyData.logo = `${req.protocol}://${req.get('host')}/getLogo/${companyData.logo}`;
+            }
+            if (companyData.cover) {
+                companyData.cover = `${req.protocol}://${req.get('host')}/getCover/${companyData.cover}`;
             }
             return companyData; // Return companyData even if there's no logo
         });
@@ -447,16 +458,19 @@ app.get('/companyUsers', companyAdminAuthMiddleware, asyncHandler(async (req, re
                 user.avatar = `${req.protocol}://${req.get('host')}/getImage/${user.avatar}`;
             }
         }
-
-        // Adjust cover URL
-        if (user.cover) {
-            user.cover = `${req.protocol}://${req.get('host')}/getCover/${user.cover}`;
-        }
-
         return user;
     });
+    if (company.cover) {
+        company.cover = `${req.protocol}://${req.get('host')}/getCover/${company.cover}`;
+    }
 
-    res.status(200).json(users); // Return user details
+    // Create a response object that includes user details and company cover
+    const response = {
+        user: users,
+        companyCover: company ? company.cover : null // Include company cover or null if not found
+    };
+
+    res.status(200).json(response); // Return user details
 }));
 
 
@@ -486,7 +500,7 @@ app.get('/filterUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res
         throw new Error('User with this name not found');
     }
 
-    users = users.map(user => {
+    const usersWithCompanyCover = await Promise.all(users.map(async (user) => {
         // Adjust avatar URL
         if (user.avatar) {
             if (user.avatar === 'profile.png') {
@@ -496,15 +510,22 @@ app.get('/filterUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res
             }
         }
 
-        // Adjust cover URL
-        if (user.cover) {
-            user.cover = `${req.protocol}://${req.get('host')}/getCover/${user.cover}`;
+        // Fetch the company associated with the user
+        const company = await Company.findOne({ name: user.companyName });
+
+        // Adjust company cover URL if it exists
+        if (company && company.cover) {
+            company.cover = `${req.protocol}://${req.get('host')}/getCover/${company.cover}`;
         }
 
-        return user;
-    });
+        // Return user with company cover
+        return {
+            user,
+            companyCover: company ? company.cover : null // Include company cover or null if not found
+        };
+    }));
 
-    res.status(200).json(users); // Return user details
+    res.status(200).json(usersWithCompanyCover); // Return user details
 }));
 
 
@@ -539,6 +560,10 @@ app.get('/filterCompanies', companyAdminAuthMiddleware, asyncHandler(async (req,
             company.logo = `${req.protocol}://${req.get('host')}/getLogo/${company.logo}`;
         }
 
+        if (company.cover) {
+            company.cover = `${req.protocol}://${req.get('host')}/getCover/${company.cover}`;
+        }
+
         if (company.companyAdmin) {
             const admin = await Admin.findById(company.companyAdmin).select('email employeeLimit');
             if (admin) {
@@ -560,7 +585,7 @@ app.get('/filterCompanies', companyAdminAuthMiddleware, asyncHandler(async (req,
 
 
 
-app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
     if(req.admin.role !== 'superAdmin'){
         throw new Error('Not Authorized');
     }
@@ -569,6 +594,9 @@ app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }]), c
     const company = await Company.create({ name: companyName});
     if (req.files && req.files.logo && req.files.logo.length > 0) {
         company.logo = req.files.logo[0].filename;
+    }
+    if (req.files && req.files.cover && req.files.cover.length > 0) {
+        company.cover = req.files.cover[0].filename;
     }
     // if (req.files && req.files.avatar && req.files.avatar.length > 0) {
     //     userData.avatar = req.files.avatar[0].filename;
@@ -628,6 +656,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
             phone: req.body.phone,
             email: req.body.email,
             password: req.body.password,
+            address: req.body.address,
             position: req.body.position,
             companyName: req.body.companyName,
             website: req.body.website,
@@ -647,9 +676,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
         if (req.files && req.files.avatar && req.files.avatar.length > 0) {
             userData.avatar = req.files.avatar[0].filename;
         }
-        if (req.files && req.files.cover && req.files.cover.length > 0) {
-            userData.cover = req.files.cover[0].filename;
-        }
+
 
 
         const user = await User.create(userData);
@@ -741,7 +768,7 @@ app.delete('/deleteUser/:id', asyncHandler(async (req, res) => {
     }
 }));
 
-app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }]), companyAdminAuthMiddleware, upload.single('logo'), asyncHandler(async (req, res) => {
+app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), companyAdminAuthMiddleware, upload.single('logo'), asyncHandler(async (req, res) => {
     try {
         // Find the company
         const company = await Company.findById(req.params.id);
@@ -774,6 +801,9 @@ app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }]), c
             company.logo = req.files.logo[0].filename;
         }
 
+        if (req.files && req.files.cover && req.files.cover.length > 0) {
+            company.cover = req.files.cover[0].filename;
+        }
 
         await company.save();
         await admin.save();
