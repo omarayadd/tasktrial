@@ -354,11 +354,11 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
         const company = await Company.findOne({ name: user.companyName });
         userData.companyId = company ? company._id : null;
 
-        return usersWithCompanyId;
+        return userData;
     }));
 
 
-    res.status(200).json(usersWithUrls);
+    res.status(200).json(usersWithCompanyId);
 }));
 
 
@@ -778,7 +778,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
 }));
 
 
-app.put('/updateUser/:id', companyAdminAuthMiddleware,upload.single('avatar'), asyncHandler(async (req, res) => {
+app.put('/updateUser/:id', companyAdminAuthMiddleware, upload.single('avatar'), asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) {
         res.status(404);
@@ -808,10 +808,12 @@ app.put('/updateUser/:id', companyAdminAuthMiddleware,upload.single('avatar'), a
         }
     });
 
-    if (req.files && req.files.avatar && req.files.avatar.length > 0) {
-        userData.avatar = req.files.avatar[0].filename;
+    // if (req.files && req.files.avatar && req.files.avatar.length > 0) {
+    //     userData.avatar = req.files.avatar[0].filename;
+    // }
+    if (req.file) {
+        user.avatar = req.file.filename;  // Save the new avatar filename
     }
-
     // Save the user, which will trigger the pre-save hook for password hashing if the password has been modified
     const updatedUserr = await user.save();
     // Adjust avatar URL before sending the response
