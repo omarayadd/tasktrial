@@ -338,8 +338,10 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
         res.status(404);
         throw new Error('No Users are found');
     }
-    const usersWithUrls = users.map(user => {
+    const usersWithCompanyId = await Promise.all(users.map(async (user) => {
         const userData = user.toJSON();
+
+        // Adjust avatar URL
         if (userData.avatar) {
             if (userData.avatar === 'profile.png') {
                 userData.avatar = `${req.protocol}://${req.get('host')}/uploads/images/${userData.avatar}`;
@@ -347,8 +349,14 @@ app.get('/allUsers', companyAdminAuthMiddleware, asyncHandler(async (req, res) =
                 userData.avatar = `${req.protocol}://${req.get('host')}/getImage/${userData.avatar}`;
             }
         }
-        return userData;
-    });
+
+        // Fetch company by name to get companyId
+        const company = await Company.findOne({ name: user.companyName });
+        userData.companyId = company ? company._id : null;
+
+        return usersWithCompanyId;
+    }));
+
 
     res.status(200).json(usersWithUrls);
 }));
@@ -585,34 +593,98 @@ app.get('/filterCompanies', companyAdminAuthMiddleware, asyncHandler(async (req,
 
 
 
-app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
-    if(req.admin.role !== 'superAdmin'){
-        throw new Error('Not Authorized');
-    }
-    const { email, password, companyName, employeeLimit } = req.body;
+// app.post('/createCompanyAdmin',upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+//     if(req.admin.role !== 'superAdmin'){
+//         throw new Error('Not Authorized');
+//     }
+//     const { email, password, companyName, employeeLimit } = req.body;
 
-    const company = await Company.create({ name: companyName});
-    if (req.files && req.files.logo && req.files.logo.length > 0) {
-        company.logo = req.files.logo[0].filename;
-    }
-    if (req.files && req.files.cover && req.files.cover.length > 0) {
-        company.cover = req.files.cover[0].filename;
-    }
-    // if (req.files && req.files.avatar && req.files.avatar.length > 0) {
-    //     userData.avatar = req.files.avatar[0].filename;
-    // }
-    const admin = await Admin.create({
-        email,
-        password,
-        role: 'Admin',
-        companyId: company._id,
-        employeeLimit: employeeLimit || 0,
-    });
-    company.companyAdmin = admin._id;
-    await company.save();
+//     const company = await Company.create({ name: companyName});
+//     if (req.files && req.files.logo && req.files.logo.length > 0) {
+//         company.logo = req.files.logo[0].filename;
+//     }
+//     if (req.files && req.files.cover && req.files.cover.length > 0) {
+//         company.cover = req.files.cover[0].filename;
+//     }
+//     // if (req.files && req.files.avatar && req.files.avatar.length > 0) {
+//     //     userData.avatar = req.files.avatar[0].filename;
+//     // }
+//     const admin = await Admin.create({
+//         email,
+//         password,
+//         role: 'Admin',
+//         companyId: company._id,
+//         employeeLimit: employeeLimit || 0,
+//     });
+//     company.companyAdmin = admin._id;
+//     await company.save();
 
-    res.status(201).json({ admin, company });
-}));
+//     res.status(201).json({ admin, company });
+// }));
+
+
+app.post(
+    '/createCompanyAdmin',
+    upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'cover', maxCount: 1 }]),
+    companyAdminAuthMiddleware,
+    asyncHandler(async (req, res) => {
+        if (req.admin.role !== 'superAdmin') {
+            res.status(403);
+            throw new Error('Not Authorized');
+        }
+
+        const { email, password, companyName, employeeLimit } = req.body;
+
+        // Validate required fields
+        if (!email || !password || !companyName) {
+            res.status(400);
+            throw new Error('Missing required fields: email, password, or companyName');
+        }
+
+        // Initialize company data
+        const companyData = { name: companyName };
+
+        // Add logo and cover if present
+        if (req.files) {
+            if (req.files.logo && req.files.logo.length > 0) {
+                companyData.logo = req.files.logo[0].filename;
+            }
+            if (req.files.cover && req.files.cover.length > 0) {
+                companyData.cover = req.files.cover[0].filename;
+            }
+        }
+
+        // Create company and admin in parallel
+        const [company, admin] = await Promise.all([
+            Company.create(companyData),
+            Admin.create({
+                email,
+                password,
+                role: 'Admin',
+                employeeLimit: employeeLimit || 0,
+            }),
+        ]);
+
+        // Link admin to company
+        company.companyAdmin = admin._id;
+        await company.save();
+
+        // Return relevant data
+        res.status(201).json({
+            company: {
+                id: company._id,
+                name: company.name,
+                logo: company.logo,
+                cover: company.cover,
+            },
+            admin: {
+                id: admin._id,
+                email: admin.email,
+                role: admin.role,
+            },
+        });
+    })
+);
 
 
 
@@ -639,7 +711,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
 
         let companyID = req.admin.companyId
         let companyy = await Company.findOne({ _id:new  mongoose.Types.ObjectId(companyID) });
-        if (req.admin.role === 'Admin' && req.body.companyName === companyy.name) {
+        if ((req.admin.role === 'Admin' || req.admin.role ==='superAdmin') && req.body.companyName === companyy.name) {
             const companyAdmin = await Admin.findById(req.admin.id);
 
             if (0 >= companyAdmin.employeeLimit) {
@@ -706,7 +778,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
 }));
 
 
-app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+app.put('/updateUser/:id', companyAdminAuthMiddleware,upload.single('avatar'), asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) {
         res.status(404);
@@ -736,10 +808,19 @@ app.put('/updateUser/:id', companyAdminAuthMiddleware, asyncHandler(async (req, 
         }
     });
 
+    if (req.files && req.files.avatar && req.files.avatar.length > 0) {
+        userData.avatar = req.files.avatar[0].filename;
+    }
+
     // Save the user, which will trigger the pre-save hook for password hashing if the password has been modified
     const updatedUserr = await user.save();
-
-    res.status(200).json(updatedUserr);
+    // Adjust avatar URL before sending the response
+    const updatedUserWithAvatarUrl = updatedUserr.toJSON();
+        if (updatedUserWithAvatarUrl.avatar) {
+            updatedUserWithAvatarUrl.avatar = `${req.protocol}://${req.get('host')}/uploads/avatars/${updatedUserWithAvatarUrl.avatar}`;
+        }
+    
+    res.status(200).json(updatedUserWithAvatarUrl);
 }));
 
 
