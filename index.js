@@ -689,6 +689,7 @@ app.post(
 
 
 app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), companyAdminAuthMiddleware, asyncHandler(async (req, res) => {
+    console.log('ahahhahahha1');
     try {
         const { firstname, email, phone, position, password, companyName } = req.body;
 
@@ -696,22 +697,24 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
             res.status(400);
             throw new Error('Please fill in the required fields');
         }
-
+        console.log('ahahhahahha2');
         const phoneRegex = /^\d+$/;
         if (!phoneRegex.test(phone)) {
             res.status(400);
             throw new Error('Phone number should only contain digits');
         }
-
+        console.log('ahahhahahha3');
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             res.status(400);
             throw new Error('Email already exists');
         }
-
+        console.log('ahahhahahha4');
         let companyID = req.admin.companyId
+        console.log(companyID)
         let companyy = await Company.findOne({ _id:new  mongoose.Types.ObjectId(companyID) });
-        if ((req.admin.role === 'Admin' || req.admin.role ==='superAdmin') && req.body.companyName === companyy.name) {
+        console.log(companyy);
+        if ((companyy && (req.admin.role === 'Admin' || req.admin.role ==='superAdmin') && req.body.companyName === companyy.name)) {
             const companyAdmin = await Admin.findById(req.admin.id);
 
             if (0 >= companyAdmin.employeeLimit) {
@@ -721,7 +724,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
         else if(req.admin.role!=='superAdmin'){
             throw new Error('Cannot add employee in this company');
         }
-
+        console.log('ahahhahahha6');
         let userData = {
             firstname: req.body.firstname,
             lastname: req.body.lastname,
@@ -744,7 +747,7 @@ app.post('/setUser', upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'co
             role: "employee",
             companyId : req.admin.companyId
         };
-
+        console.log('ahahhahahha6');
         if (req.files && req.files.avatar && req.files.avatar.length > 0) {
             userData.avatar = req.files.avatar[0].filename;
         }
@@ -855,8 +858,9 @@ app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }, { n
     try {
         // Find the company
         const company = await Company.findById(req.params.id);
+        console.log(company)
         const admin = await Admin.findOne({companyId : company._id.toString()})
-
+        console.log(admin)
         // if(req.admin.role !== 'superAdmin'){
         //     throw new Error('Not Authorized');
         // }
@@ -872,11 +876,11 @@ app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }, { n
             company.name = name;
         }
 
-        if (employeeLimit) {
+        if (admin && employeeLimit) {
             admin.employeeLimit = employeeLimit;
         }
 
-        if (email) {
+        if (admin && email) {
             admin.email = email;
         }
 
@@ -889,8 +893,9 @@ app.patch('/updateCompany/:id',upload.fields([{ name: 'logo', maxCount: 1 }, { n
         }
 
         await company.save();
+        if(admin){
         await admin.save();
-
+        }
         res.status(200).json({
             message: 'Company updated successfully',
             company
